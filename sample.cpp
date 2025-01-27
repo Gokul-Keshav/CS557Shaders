@@ -269,8 +269,9 @@ MulArray3(float factor, float a, float b, float c )
 #include "keytime.cpp"
 #include "glslprogram.cpp"
 
-float NowAd, NowBd, NowTol, NowKa, NowKd, NowKs, NowShine;
+float NowAd, NowBd, NowTol, NowKa, NowKd, NowKs, NowShine, uNoiseFreq, uNoiseAmp;
 GLSLProgram Pattern;
+GLuint Noise3;
 
 //Define Keytimes
 Keytimes Ad, Bd, Tol;
@@ -415,6 +416,10 @@ Display( )
 
 	// draw the box object by calling up its display list:
 
+	glActiveTexture( GL_TEXTURE3 ); 
+	glBindTexture(GL_TEXTURE_3D, Noise3 );
+
+
 	Pattern.Use( );
 
 	// set the uniform variables that will change over time:
@@ -424,11 +429,13 @@ Display( )
     float nowTime = (float)msec  / 1000.;
 	NowAd = 0.1f;
 	NowBd = 0.2f;
-	NowTol  = 0.f;
+	NowTol  = 0.9f;
 	NowKa = 0.2f;
 	NowKd = 0.6f;
 	NowKs = 0.3f;
 	NowShine = 11.;
+	uNoiseFreq = 5.;
+	uNoiseAmp = 0.52;
 	if(toggle == 0)
 	{
 		NowAd = Ad.GetValue(nowTime); // 0 -> Change Ad
@@ -449,6 +456,9 @@ Display( )
 	Pattern.SetUniformVariable( (char *)"uKd" , NowKd  );
 	Pattern.SetUniformVariable( (char *)"uKs" , NowKs  );
 	Pattern.SetUniformVariable( (char *)"uShininess" , NowShine  );
+	Pattern.SetUniformVariable( "uNoiseFreq", uNoiseFreq);
+	Pattern.SetUniformVariable( "uNoiseAmp", uNoiseAmp);
+	Pattern.SetUniformVariable( "Noise3", 3);
 
 	glCallList( SphereList );
 
@@ -658,6 +668,29 @@ InitMenus( )
 
 
 
+// Reading 3D Texture
+unsigned char *
+ReadTexture3D( char *filename, int *width, int *height, int *depth)
+{
+	FILE *fp = fopen(filename, "rb");
+	if( fp == NULL )
+	return NULL;
+	int nums, numt, nump;
+	fread(&nums, 4, 1, fp);
+	fread(&numt, 4, 1, fp);
+	fread(&nump, 4, 1, fp);
+	fprintf( stderr, "Texture size = %d x %d x %d\n", nums, numt, nump );
+	*width = nums;
+	*height = numt;
+	*depth = nump;
+	unsigned char * texture = new unsigned char[ 4 * nums * numt * nump ];
+	fread(texture, 4 * nums * numt * nump, 1, fp);
+	fclose(fp);
+	return texture;
+}
+
+
+
 // initialize the glut and OpenGL libraries:
 //	also setup callback functions
 
@@ -748,6 +781,21 @@ InitGraphics( )
 	fprintf( stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 #endif
 
+	glGenTextures(1, &Noise3);
+	int nums, numt, nump;
+	unsigned char * texture = ReadTexture3D( "noise3d.064.tex", &nums, &numt, &nump);
+	if( texture == NULL ) {
+		printf("Texture Read is NULL\n");
+	}
+	glBindTexture(GL_TEXTURE_3D, Noise3);
+	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, nums, numt, nump, 0, GL_RGBA,
+	GL_UNSIGNED_BYTE, texture);
+
 	// all other setups go here, such as GLSLProgram and KeyTime setups:
 
 	Pattern.Init( );
@@ -765,6 +813,9 @@ InitGraphics( )
 	Pattern.SetUniformVariable( (char *)"uColor", 1.f, 0.5f, 0.f, 1.f );
 	Pattern.SetUniformVariable( (char *)"uSpecularColor", 1.f, 1.f, 1.f, 1.f );
 	Pattern.SetUniformVariable( (char *)"uShininess", 12.f );
+	Pattern.SetUniformVariable( "uNoiseFreq", uNoiseFreq);
+	Pattern.SetUniformVariable( "uNoiseAmp", uNoiseAmp);
+	Pattern.SetUniformVariable( "Noise3", 3);
 	Pattern.UnUse( );
 
 	//Init Keytimes
