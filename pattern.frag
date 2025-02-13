@@ -1,89 +1,93 @@
-// you can set these 4 uniform variables dynamically or hardwire them:
+uniform sampler3D	Noise3;
+uniform float 		uNoiseAmp;
+uniform float 		uNoiseFreq;
+uniform float		uEta;
+uniform float 		uMix;
+uniform float 		uWhiteMix;
+uniform samplerCube uReflectUnit;
+uniform samplerCube uRefractUnit;
 
-uniform float	uKa, uKd, uKs;	// coefficients of each type of lighting
-uniform float	uShininess;	// specular exponent
+varying vec3	vNormal;
+varying vec3	vEyeDir;
+varying vec3	vMC;
 
-// in Project #1, these have to be set dynamically from glman sliders or keytime animations or by keyboard hits:
-uniform float	uAd, uBd;
-uniform float	uTol;
+const vec3  WHITE = vec3( 1.,1.,1. );
 
-// Noise and Amplitute and Frequency
-uniform sampler3D Noise3;
-uniform float uNoiseFreq, uNoiseAmp;
+vec3
+PerturbNormal3( float angx, float angy, float angz, vec3 n )
+{
+	float cx = cos( angx );
+	float sx = sin( angx );
+	float cy = cos( angy );
+	float sy = sin( angy );
+	float cz = cos( angz );
+	float sz = sin( angz );
+	
+	// rotate about x:
+	float yp =  n.y*cx - n.z*sx;	// y'
+	n.z      =  n.y*sx + n.z*cx;	// z'
+	n.y      =  yp;
+	// n.x      =  n.x;
 
-// interpolated from the vertex shader:
-varying  vec2  vST;                  // texture coords
-varying  vec3  vN;                   // normal vector
-varying  vec3  vL;                   // vector from point to light
-varying  vec3  vE;                   // vector from point to eye
-varying  vec3  vMC;			// model coordinates
+	// rotate about y:
+	float xp =  n.x*cy + n.z*sy;	// x'
+	n.z      = -n.x*sy + n.z*cy;	// z'
+	n.x      =  xp;
+	// n.y      =  n.y;
 
-// for Mac users:
-//	Leave out the #version line, or use 120
-//	Change the "in" to "varying"
+	// rotate about z:
+	      xp =  n.x*cz - n.y*sz;	// x'
+	n.y      =  n.x*sz + n.y*cz;	// y'
+	n.x      = xp;
+	// n.z      =  n.z;
 
+	return normalize( n );
+}
 
-const vec3 OBJECTCOLOR          = vec3( 1., 1., 1. );           // color to make the object
-const vec3 ELLIPSECOLOR         = vec3( 0., 0., 1. );           // color to make the ellipse
-const vec3 SPECULARCOLOR        = vec3( 1., 1., 1. );
 
 void
 main( )
 {
-    vec3 myColor = OBJECTCOLOR;
-	vec2 st = vST;
+	vec3 Normal = vNormal;	// remember to unitize this
+	vec3 Eye = vEyeDir;	// remember to unitize this
 
-	// blend OBJECTCOLOR and ELLIPSECOLOR by using the ellipse equation to decide how close
-	// 	this fragment is to the ellipse border:
+	vec4 nvx = texture3D( Noise3, uNoiseFreq*vMC );
+	vec4 nvy = texture3D( Noise3, uNoiseFreq*vec3(vMC.xy,vMC.z+0.33) );
+	vec4 nvz = texture3D( Noise3, uNoiseFreq*vec3(vMC.xy,vMC.z+0.67) );
 
-    vec4 nv = texture3D( Noise3, uNoiseFreq * vec3(vST,0.) );
-    float n = nv.r + nv.g + nv.b + nv.a; 
-    n = n - 2.;
-    n *= uNoiseAmp;
+	float angx = nvx.r + nvx.g + nvx.b + nvx.a;	//  1. -> 3.
+	angx = angx - 2.;				// -1. -> 1.
+	angx *= uNoiseAmp;
 
+	float angy = nvy.r + nvy.g + nvy.b + nvy.a;	//  1. -> 3.
+	angy = angy - 2.;				// -1. -> 1.
+	angy *= uNoiseAmp;
 
+	float angz = nvz.r + nvz.g + nvz.b + nvz.a;	//  1. -> 3.
+	angz = angz - 2.;				// -1. -> 1.
+	angz *= uNoiseAmp;
 
-    int numins = int( st.s / uAd );
-	int numint = int( st.t / uBd );
+	Normal = PerturbNormal3( angx, angy, angz, Normal );
+	Normal = normalize( gl_NormalMatrix * Normal );
 
-	float Ar = uAd/2.;
-	float Br = uBd/2.;
-	float sc = float(numins) * uAd + Ar;
-	float tc = float(numint) * uBd + Br;
+	vec3 reflectVector = reflect( Eye, Normal );
+	vec3 reflectColor = textureCube( uReflectUnit, reflectVector ).rgb;
 
-    float ds = st.s - sc; 
-    float dt = st.t - tc; 
-    float oldDist = sqrt( ds*ds + dt*dt );
-    float newDist = oldDist + n;
-    float scale = newDist / oldDist; // wrt ellipse center
-    ds *= scale; 
-    ds /= Ar; 
-    dt *= scale; 
-    dt /= Br; 
+	vec3 refractVector = refract( Eye, Normal, uEta );
 
-	float d = ds*ds + dt*dt;
-	float t = smoothstep( 1.- uTol, 1.+ uTol, d );
-    myColor = mix( ELLIPSECOLOR, OBJECTCOLOR, t );
+	vec3 refractColor;
+	if( all( equal( refractVector, vec3(0.,0.,0.) ) ) )
+	{
+		refractColor = reflectColor;
+	}
+	else
+	{
+		refractColor = textureCube( uRefractUnit, refractVector ).rgb;
+		refractColor = mix( refractColor, WHITE, uWhiteMix );
+	}
 
-	// now use myColor in the per-fragment lighting equations:
-
-        vec3 Normal    = normalize(vN);
-        vec3 Light     = normalize(vL);
-        vec3 Eye       = normalize(vE);
-
-        vec3 ambient = uKa * myColor;
-
-        float dd = max( dot(Normal,Light), 0. );       // only do diffuse if the light can see the point
-        vec3 diffuse = uKd * dd * myColor;
-
-        float s = 0.;
-        if( dd > 0. )              // only do specular if the light can see the point
-        {
-                vec3 ref = normalize(  reflect( -Light, Normal )  );
-                float cosphi = dot( Eye, ref );
-                if( cosphi > 0. )
-                        s = pow( max( cosphi, 0. ), uShininess );
-        }
-        vec3 specular = uKs * s * SPECULARCOLOR.rgb;
-        gl_FragColor = vec4( ambient + diffuse + specular,  1. );
+    vec3 color = mix( refractColor, reflectColor, uMix );
+    color = mix( color, WHITE, uWhiteMix );
+    gl_FragColor = vec4(color, 1. );
+	//gl_FragColor = mix( ?????, ?????, uMix );
 }

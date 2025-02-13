@@ -181,7 +181,7 @@ float	Scale;					// scaling factor
 float	Time;					// used for animation, this has a value between 0. and 1.
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
-int		SphereList;
+int		ObjectList;
 int toggle;
 
 
@@ -261,21 +261,36 @@ MulArray3(float factor, float a, float b, float c )
 
 //#include "setmaterial.cpp"
 //#include "setlight.cpp"
-#include "osusphere.cpp"
+//#include "osusphere.cpp"
 //#include "osucone.cpp"
 //#include "osutorus.cpp"
-//#include "bmptotexture.cpp"
-//#include "loadobjfile.cpp"
+#include "bmptotexture.cpp"
+#include "loadobjfile.cpp"
 #include "keytime.cpp"
 #include "glslprogram.cpp"
 
-float NowAd, NowBd, NowTol, NowKa, NowKd, NowKs, NowShine, uNoiseFreq, uNoiseAmp;
+float Eta;
+float Mix;
+float uWhiteMix;
+float NoiseAmp;
+float NoiseFreq;
+int ReflectUnit = 5;
+int RefractUnit = 6;
 GLSLProgram Pattern;
 GLuint Noise3;
+GLuint CubeName;
+char * FaceFiles[6] =
+{
+	"kec.posx.bmp",
+	"kec.negx.bmp",
+	"kec.posy.bmp",
+	"kec.negy.bmp",
+	"kec.posz.bmp",
+	"kec.negz.bmp"
+};
 
 //Define Keytimes
-Keytimes Ad, Bd, Tol;
-
+//Keytimes NowNoiseAmp, NowNoiseFreq;
 
 // main program:
 
@@ -389,7 +404,7 @@ Display( )
 
 	// set the eye position, look-at position, and up-vector:
 
-	gluLookAt( 0.f, 0.f, 3.f,     0.f, 0.f, 0.f,     0.f, 1.f, 0.f );
+	gluLookAt( 5.f, 5.f, 5.f,     0.f, 0.f, 0.f,     0.f, 1.f, 0.f );
 
 	// rotate the scene:
 
@@ -419,51 +434,36 @@ Display( )
 	glActiveTexture( GL_TEXTURE3 ); 
 	glBindTexture(GL_TEXTURE_3D, Noise3 );
 
-
-	Pattern.Use( );
-
 	// set the uniform variables that will change over time:
 	// turn that into a time in seconds:
 	// turn # msec into the cycle ( 0 - MSEC-1 ):
     int msec = glutGet( GLUT_ELAPSED_TIME )  %  MS_PER_CYCLE;
     float nowTime = (float)msec  / 1000.;
-	NowAd = 0.1f;
-	NowBd = 0.2f;
-	NowTol  = 0.9f;
-	NowKa = 0.2f;
-	NowKd = 0.6f;
-	NowKs = 0.3f;
-	NowShine = 11.;
-	uNoiseFreq = 5.;
-	uNoiseAmp = 0.52;
-	if(toggle == 0)
-	{
-		NowAd = Ad.GetValue(nowTime); // 0 -> Change Ad
-	}
-	else if(toggle == 1)
-	{
-		NowBd = Bd.GetValue(nowTime); // 1 -> Change Bd
-	}
-	else if(toggle == 2)
-	{
-		NowTol = Tol.GetValue(nowTime); // 2 -> Change Tol
-	}
-	//else change nothing leave it at default
-	Pattern.SetUniformVariable( (char *)"uAd", NowAd );
-	Pattern.SetUniformVariable( (char *)"uBd", NowBd );
-	Pattern.SetUniformVariable( (char *)"uTol" , NowTol  );
-	Pattern.SetUniformVariable( (char *)"uKa" , NowKa  );
-	Pattern.SetUniformVariable( (char *)"uKd" , NowKd  );
-	Pattern.SetUniformVariable( (char *)"uKs" , NowKs  );
-	Pattern.SetUniformVariable( (char *)"uShininess" , NowShine  );
-	Pattern.SetUniformVariable( "uNoiseFreq", uNoiseFreq);
-	Pattern.SetUniformVariable( "uNoiseAmp", uNoiseAmp);
+
+	Eta = 1.4f;
+	Mix = 1.f;
+	uWhiteMix = 0.4f;
+	NoiseAmp = 0.f;
+	NoiseFreq = 0.1f;
+	ReflectUnit = 5;
+	RefractUnit = 6;
+
+	Pattern.Use( );
+	glActiveTexture( GL_TEXTURE0 + ReflectUnit );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, CubeName );
+	glActiveTexture( GL_TEXTURE0 + RefractUnit );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, CubeName );
+	glActiveTexture( GL_TEXTURE3 ); 
+	glBindTexture(GL_TEXTURE_3D, Noise3 );
+	Pattern.SetUniformVariable( "uReflectUnit", ReflectUnit );
+	Pattern.SetUniformVariable( "uRefractUnit", RefractUnit );
+	Pattern.SetUniformVariable( "NoiseAmp", NoiseAmp);
+	Pattern.SetUniformVariable( "NoiseFreq", NoiseFreq);
+	Pattern.SetUniformVariable( "uMix", Mix );
+	Pattern.SetUniformVariable( "uEta", Eta );
 	Pattern.SetUniformVariable( "Noise3", 3);
-
-	glCallList( SphereList );
-
-	Pattern.UnUse( );       // Pattern.Use(0);  also works
-
+	glCallList( ObjectList );
+	Pattern.UnUse();
 
 	// draw some gratuitous text that just rotates on top of the scene:
 	// i commented out the actual text-drawing calls -- put them back in if you have a use for them
@@ -796,6 +796,26 @@ InitGraphics( )
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, nums, numt, nump, 0, GL_RGBA,
 	GL_UNSIGNED_BYTE, texture);
 
+	glGenTextures( 1, &CubeName );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, CubeName );
+	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_REPEAT );
+	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_REPEAT );
+	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_REPEAT );
+	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	for( int file = 0; file < 6; file++ )
+	{
+		int nums, numt;
+		unsigned char * texture2d = BmpToTexture( FaceFiles[file], &nums, &numt );
+		if( texture2d == NULL )
+			fprintf( stderr, "Could not open BMP 2D texture '%s'", FaceFiles[file] );
+		else
+			fprintf( stderr, "BMP 2D texture '%s' read -- nums = %d, numt = %d\n", FaceFiles[file], nums, numt );
+		glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + file, 0, 3, nums, numt, 0,
+			GL_RGB, GL_UNSIGNED_BYTE, texture2d );
+		delete [ ] texture2d;
+	}
+
 	// all other setups go here, such as GLSLProgram and KeyTime setups:
 
 	Pattern.Init( );
@@ -805,41 +825,42 @@ InitGraphics( )
 	else
 		fprintf( stderr, "Pattern shader created!\n" );
 
+
+
+	Eta = 1.4f;
+	Mix = 0.2f;
+	uWhiteMix = 0.2f;
+	NoiseAmp = 3.f;
+	NoiseFreq = 0.2f;
+	ReflectUnit = 5;
+	RefractUnit = 6;
+
 	// set the uniform variables that will not change:
 	Pattern.Use( );
-	Pattern.SetUniformVariable( (char *)"uKa", 0.1f );
-	Pattern.SetUniformVariable( (char *)"uKd", 0.5f );
-	Pattern.SetUniformVariable( (char *)"uKs", 0.4f );
-	Pattern.SetUniformVariable( (char *)"uColor", 1.f, 0.5f, 0.f, 1.f );
-	Pattern.SetUniformVariable( (char *)"uSpecularColor", 1.f, 1.f, 1.f, 1.f );
-	Pattern.SetUniformVariable( (char *)"uShininess", 12.f );
-	Pattern.SetUniformVariable( "uNoiseFreq", uNoiseFreq);
-	Pattern.SetUniformVariable( "uNoiseAmp", uNoiseAmp);
+	Pattern.SetUniformVariable( "uReflectUnit", ReflectUnit );
+	Pattern.SetUniformVariable( "uRefractUnit", RefractUnit );
+	Pattern.SetUniformVariable( "NoiseAmp", NoiseAmp);
+	Pattern.SetUniformVariable( "NoiseFreq", NoiseFreq);
+	Pattern.SetUniformVariable( "uMix", Mix );
+	Pattern.SetUniformVariable( "uWhiteMix", uWhiteMix );
+	Pattern.SetUniformVariable( "uEta", Eta );
 	Pattern.SetUniformVariable( "Noise3", 3);
 	Pattern.UnUse( );
 
 	//Init Keytimes
-	Ad.Init( );
-	Ad.AddTimeValue(  0.0,  0.1 );
-	Ad.AddTimeValue(  2.0,  0.2 );
-	Ad.AddTimeValue(  5.0,  0.3 );
-	Ad.AddTimeValue(  8.0,  0.4 );
-	Ad.AddTimeValue( 10.0,  0.5 );
+	// NowuNoiseAmp.Init( );
+	// NowuNoiseAmp.AddTimeValue(  0.0,  0.0 );
+	// NowuNoiseAmp.AddTimeValue(  2.0,  1.0 );
+	// NowuNoiseAmp.AddTimeValue(  5.0,  2.0 );
+	// NowuNoiseAmp.AddTimeValue(  8.0,  3.0 );
+	// NowuNoiseAmp.AddTimeValue( 10.0,  4.0 );
 
-	Bd.Init();
-	Bd.AddTimeValue(  0.0,  0.1 );
-	Bd.AddTimeValue(  2.0,  0.2 );
-	Bd.AddTimeValue(  5.0,  0.3 );
-	Bd.AddTimeValue(  8.0,  0.4 );
-	Bd.AddTimeValue( 10.0,  0.5 );
-
-	Tol.Init();
-	Tol.AddTimeValue(  0.0,  0.1 );
-	Tol.AddTimeValue(  2.0,  0.3 );
-	Tol.AddTimeValue(  5.0,  0.6 );
-	Tol.AddTimeValue(  8.0,  0.8 );
-	Tol.AddTimeValue( 10.0,  1. );
-	toggle = 3;
+	// NowuNoiseFreq.Init();
+	// NowuNoiseFreq.AddTimeValue( 0.0, 1.);
+	// NowuNoiseFreq.AddTimeValue( 2.0, 3.);
+	// NowuNoiseFreq.AddTimeValue( 5.0, 5.);
+	// NowuNoiseFreq.AddTimeValue( 8.0, 7.);
+	// NowuNoiseFreq.AddTimeValue( 10.0, 9.);
 }
 
 
@@ -858,11 +879,10 @@ InitLists( )
 
 	// create the object:
 
-	SphereList = glGenLists( 1 );
-	glNewList( SphereList, GL_COMPILE );
-		OsuSphere( 1., 64, 64 );
+	ObjectList = glGenLists( 1 );
+	glNewList( ObjectList, GL_COMPILE );
+		LoadObjFile("cow.obj");
 	glEndList( );
-
 
 	// create the axes:
 
@@ -904,17 +924,17 @@ Keyboard( unsigned char c, int x, int y )
 			NowProjection = PERSP;
 			break;
 
+		case 't':
+		case 'T':
+			toggle += 1;
+			toggle %= 3;
+			break;
+
 		case 'q':
 		case 'Q':
 		case ESCAPE:
 			DoMainMenu( QUIT );	// will not return here
 			break;				// happy compiler
-
-		case 't':
-		case 'T':
-			toggle += 1;
-			toggle %= 4;
-			break;
 
 		default:
 			fprintf( stderr, "Don't know what to do with keyboard hit: '%c' (0x%0x)\n", c, c );
