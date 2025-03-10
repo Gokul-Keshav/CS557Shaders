@@ -1,0 +1,18 @@
+##OpenGL GLIB
+Ortho -5. 5.   -5. 5.
+LookAt 0 0 2  0 0 0  0 1 0
+
+Texture2D 5 marstexture.bmp
+
+Vertex   pattern.vert
+Fragment pattern.frag
+Program  sample				\
+	uSc	<0. .5 1.>				\
+	uTc	<0. .5 1.>				\
+	uRad   	<0.01 0.05 1.>				\
+	uMag	<.1 1. 10.>				\
+	uWhirl	<-30. 0. 30.>				\
+	uMosaic <0.001 0.001 0.1>			\
+	uImageUnit  5
+
+QuadXY 5. 5.

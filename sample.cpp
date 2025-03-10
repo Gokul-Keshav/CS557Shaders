@@ -165,7 +165,7 @@ const float	WHITE[ ] = { 1.,1.,1.,1. };
 
 // for animation:
 
-const int MS_PER_CYCLE = 10000;		// 10000 milliseconds = 10 seconds
+const int MS_PER_CYCLE = 40000;		// 10000 milliseconds = 10 seconds
 
 // non-constant global variables:
 
@@ -182,7 +182,6 @@ float	Time;					// used for animation, this has a value between 0. and 1.
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
 int		ObjectList;
-int toggle;
 
 
 // function prototypes:
@@ -269,25 +268,8 @@ MulArray3(float factor, float a, float b, float c )
 #include "keytime.cpp"
 #include "glslprogram.cpp"
 
-float Eta;
-float Mix;
-float uWhiteMix;
-float NoiseAmp;
-float NoiseFreq;
-int ReflectUnit = 5;
-int RefractUnit = 6;
 GLSLProgram Pattern;
 GLuint Noise3;
-GLuint CubeName;
-char * FaceFiles[6] =
-{
-	"kec.posx.bmp",
-	"kec.negx.bmp",
-	"kec.posy.bmp",
-	"kec.negy.bmp",
-	"kec.posz.bmp",
-	"kec.negz.bmp"
-};
 
 //Define Keytimes
 //Keytimes NowNoiseAmp, NowNoiseFreq;
@@ -404,7 +386,7 @@ Display( )
 
 	// set the eye position, look-at position, and up-vector:
 
-	gluLookAt( 5.f, 5.f, 5.f,     0.f, 0.f, 0.f,     0.f, 1.f, 0.f );
+	gluLookAt( 0.f, 0.f, 9.f,     0.f, 0.f, 0.f,     0.f, 1.f, 0.f );
 
 	// rotate the scene:
 
@@ -429,39 +411,20 @@ Display( )
 
 	glEnable( GL_NORMALIZE );
 
-	// draw the box object by calling up its display list:
-
-	glActiveTexture( GL_TEXTURE3 ); 
-	glBindTexture(GL_TEXTURE_3D, Noise3 );
-
 	// set the uniform variables that will change over time:
 	// turn that into a time in seconds:
 	// turn # msec into the cycle ( 0 - MSEC-1 ):
     int msec = glutGet( GLUT_ELAPSED_TIME )  %  MS_PER_CYCLE;
-    float nowTime = (float)msec  / 1000.;
+    float nowTime = (float)msec / 1000.;
+	//printf("Now Time %f\n", nowTime);
 
-	Eta = 1.4f;
-	Mix = 1.f;
-	uWhiteMix = 0.4f;
-	NoiseAmp = 0.f;
-	NoiseFreq = 0.1f;
-	ReflectUnit = 5;
-	RefractUnit = 6;
-
-	Pattern.Use( );
-	glActiveTexture( GL_TEXTURE0 + ReflectUnit );
-	glBindTexture( GL_TEXTURE_CUBE_MAP, CubeName );
-	glActiveTexture( GL_TEXTURE0 + RefractUnit );
-	glBindTexture( GL_TEXTURE_CUBE_MAP, CubeName );
 	glActiveTexture( GL_TEXTURE3 ); 
 	glBindTexture(GL_TEXTURE_3D, Noise3 );
-	Pattern.SetUniformVariable( "uReflectUnit", ReflectUnit );
-	Pattern.SetUniformVariable( "uRefractUnit", RefractUnit );
-	Pattern.SetUniformVariable( "NoiseAmp", NoiseAmp);
-	Pattern.SetUniformVariable( "NoiseFreq", NoiseFreq);
-	Pattern.SetUniformVariable( "uMix", Mix );
-	Pattern.SetUniformVariable( "uEta", Eta );
-	Pattern.SetUniformVariable( "Noise3", 3);
+
+	Pattern.Use( );
+	Pattern.SetUniformVariable( "time", nowTime );
+	Pattern.SetUniformVariable( "noiseTexture", 3);
+
 	glCallList( ObjectList );
 	Pattern.UnUse();
 
@@ -781,41 +744,21 @@ InitGraphics( )
 	fprintf( stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 #endif
 
+
 	glGenTextures(1, &Noise3);
 	int nums, numt, nump;
 	unsigned char * texture = ReadTexture3D( "noise3d.064.tex", &nums, &numt, &nump);
-	if( texture == NULL ) {
-		printf("Texture Read is NULL\n");
-	}
-	glBindTexture(GL_TEXTURE_3D, Noise3);
-	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT);
-	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, nums, numt, nump, 0, GL_RGBA,
-	GL_UNSIGNED_BYTE, texture);
-
-	glGenTextures( 1, &CubeName );
-	glBindTexture( GL_TEXTURE_CUBE_MAP, CubeName );
-	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_REPEAT );
-	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_REPEAT );
-	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_REPEAT );
-	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameterf( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-	for( int file = 0; file < 6; file++ )
+	if( texture != NULL )
 	{
-		int nums, numt;
-		unsigned char * texture2d = BmpToTexture( FaceFiles[file], &nums, &numt );
-		if( texture2d == NULL )
-			fprintf( stderr, "Could not open BMP 2D texture '%s'", FaceFiles[file] );
-		else
-			fprintf( stderr, "BMP 2D texture '%s' read -- nums = %d, numt = %d\n", FaceFiles[file], nums, numt );
-		glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + file, 0, 3, nums, numt, 0,
-			GL_RGB, GL_UNSIGNED_BYTE, texture2d );
-		delete [ ] texture2d;
+		glBindTexture( GL_TEXTURE_3D, Noise3);
+		glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+		glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA, nums, numt, nump, 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, texture);
 	}
-
 	// all other setups go here, such as GLSLProgram and KeyTime setups:
 
 	Pattern.Init( );
@@ -826,26 +769,10 @@ InitGraphics( )
 		fprintf( stderr, "Pattern shader created!\n" );
 
 
-
-	Eta = 1.4f;
-	Mix = 0.2f;
-	uWhiteMix = 0.2f;
-	NoiseAmp = 3.f;
-	NoiseFreq = 0.2f;
-	ReflectUnit = 5;
-	RefractUnit = 6;
-
 	// set the uniform variables that will not change:
-	Pattern.Use( );
-	Pattern.SetUniformVariable( "uReflectUnit", ReflectUnit );
-	Pattern.SetUniformVariable( "uRefractUnit", RefractUnit );
-	Pattern.SetUniformVariable( "NoiseAmp", NoiseAmp);
-	Pattern.SetUniformVariable( "NoiseFreq", NoiseFreq);
-	Pattern.SetUniformVariable( "uMix", Mix );
-	Pattern.SetUniformVariable( "uWhiteMix", uWhiteMix );
-	Pattern.SetUniformVariable( "uEta", Eta );
-	Pattern.SetUniformVariable( "Noise3", 3);
-	Pattern.UnUse( );
+	// Pattern.Use( );
+	// Pattern.SetUniformVariable( "uSc", uSc );
+	// Pattern.UnUse( );
 
 	//Init Keytimes
 	// NowuNoiseAmp.Init( );
@@ -881,7 +808,7 @@ InitLists( )
 
 	ObjectList = glGenLists( 1 );
 	glNewList( ObjectList, GL_COMPILE );
-		LoadObjFile("cow.obj");
+	LoadObjFile( "snakeH.obj" );
 	glEndList( );
 
 	// create the axes:
@@ -922,12 +849,6 @@ Keyboard( unsigned char c, int x, int y )
 		case 'p':
 		case 'P':
 			NowProjection = PERSP;
-			break;
-
-		case 't':
-		case 'T':
-			toggle += 1;
-			toggle %= 3;
 			break;
 
 		case 'q':

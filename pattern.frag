@@ -1,93 +1,33 @@
-uniform sampler3D	Noise3;
-uniform float 		uNoiseAmp;
-uniform float 		uNoiseFreq;
-uniform float		uEta;
-uniform float 		uMix;
-uniform float 		uWhiteMix;
-uniform samplerCube uReflectUnit;
-uniform samplerCube uRefractUnit;
+uniform sampler3D noiseTexture;
+uniform float time;
 
-varying vec3	vNormal;
-varying vec3	vEyeDir;
-varying vec3	vMC;
+varying vec2 vST; // Texture coordinates from vertex shader
+varying vec3 vMC; // Model coordinates from vertex shader
 
-const vec3  WHITE = vec3( 1.,1.,1. );
-
-vec3
-PerturbNormal3( float angx, float angy, float angz, vec3 n )
-{
-	float cx = cos( angx );
-	float sx = sin( angx );
-	float cy = cos( angy );
-	float sy = sin( angy );
-	float cz = cos( angz );
-	float sz = sin( angz );
-	
-	// rotate about x:
-	float yp =  n.y*cx - n.z*sx;	// y'
-	n.z      =  n.y*sx + n.z*cx;	// z'
-	n.y      =  yp;
-	// n.x      =  n.x;
-
-	// rotate about y:
-	float xp =  n.x*cy + n.z*sy;	// x'
-	n.z      = -n.x*sy + n.z*cy;	// z'
-	n.x      =  xp;
-	// n.y      =  n.y;
-
-	// rotate about z:
-	      xp =  n.x*cz - n.y*sz;	// x'
-	n.y      =  n.x*sz + n.y*cz;	// y'
-	n.x      = xp;
-	// n.z      =  n.z;
-
-	return normalize( n );
+// Function to generate fire-like colors
+vec3 fireColor(float intensity) {
+    return mix(vec3(1.0, 0.2, 0.0), vec3(1.0, 1.0, 0.0), intensity); // Red to Yellow
 }
 
-
-void
-main( )
+void main()
 {
-	vec3 Normal = vNormal;	// remember to unitize this
-	vec3 Eye = vEyeDir;	// remember to unitize this
+    // Sample noise using 3D coordinates (animated over time)
+    float noiseValue = texture3D(noiseTexture, vMC * 0.5 + vec3(0.0, time * 0.2, 0.0)).r;
 
-	vec4 nvx = texture3D( Noise3, uNoiseFreq*vMC );
-	vec4 nvy = texture3D( Noise3, uNoiseFreq*vec3(vMC.xy,vMC.z+0.33) );
-	vec4 nvz = texture3D( Noise3, uNoiseFreq*vec3(vMC.xy,vMC.z+0.67) );
+    // Burning effect threshold (changing over time)
+    float burnThreshold = sin(time) * 0.5 + 0.5;
 
-	float angx = nvx.r + nvx.g + nvx.b + nvx.a;	//  1. -> 3.
-	angx = angx - 2.;				// -1. -> 1.
-	angx *= uNoiseAmp;
+    // Apply dissolve effect (gradually disappearing parts)
+    if (noiseValue < burnThreshold) {
+        discard; // Remove burned fragments
+    }
 
-	float angy = nvy.r + nvy.g + nvy.b + nvy.a;	//  1. -> 3.
-	angy = angy - 2.;				// -1. -> 1.
-	angy *= uNoiseAmp;
+    // Compute fire intensity based on noise
+    float intensity = smoothstep(burnThreshold, 1.0, noiseValue);
 
-	float angz = nvz.r + nvz.g + nvz.b + nvz.a;	//  1. -> 3.
-	angz = angz - 2.;				// -1. -> 1.
-	angz *= uNoiseAmp;
+    // Apply fire color mapping
+    vec3 fire = fireColor(intensity);
 
-	Normal = PerturbNormal3( angx, angy, angz, Normal );
-	Normal = normalize( gl_NormalMatrix * Normal );
-
-	vec3 reflectVector = reflect( Eye, Normal );
-	vec3 reflectColor = textureCube( uReflectUnit, reflectVector ).rgb;
-
-	vec3 refractVector = refract( Eye, Normal, uEta );
-
-	vec3 refractColor;
-	if( all( equal( refractVector, vec3(0.,0.,0.) ) ) )
-	{
-		refractColor = reflectColor;
-	}
-	else
-	{
-		refractColor = textureCube( uRefractUnit, refractVector ).rgb;
-		refractColor = mix( refractColor, WHITE, uWhiteMix );
-	}
-
-    vec3 color = mix( refractColor, reflectColor, uMix );
-    color = mix( color, WHITE, uWhiteMix );
-    gl_FragColor = vec4(color, 1. );
-	//gl_FragColor = mix( ?????, ?????, uMix );
+    // Output final color
+    gl_FragColor = vec4(fire, 1.0);
 }
