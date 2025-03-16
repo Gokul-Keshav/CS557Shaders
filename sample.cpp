@@ -424,24 +424,19 @@ Display( )
 	glBindTexture(GL_TEXTURE_3D, Noise3 );
 
 	Pattern.Use( );
-	Pattern.SetUniformVariable( "time", nowTime );
-	Pattern.SetUniformVariable( "noiseTexture", 3);
-
-	Pattern.SetUniformVariable( "swirlAmount", .3f);
-	Pattern.SetUniformVariable( "swirlSpeed", .3f);
-	Pattern.SetUniformVariable( "swirlRadius", 2.0f);
-
-	Pattern.SetUniformVariable( "noiseScale", 1.0f);
-
-	Pattern.SetUniformVariable( "smokeFactor", 0.6f);
-	Pattern.SetUniformVariable( "fireIntensity", 1.5f);
-
-	Pattern.SetUniformVariable( "uKa", 0.2f);
-	Pattern.SetUniformVariable( "uKd", 0.7f);
-	Pattern.SetUniformVariable( "uKs", 0.3f);
-	Pattern.SetUniformVariable( "uShininess", 30.0f);
-
-	Pattern.SetUniformVariable( "LIGHTPOSITION", 5.0f, 5.0f, 5.0f);
+	Pattern.SetUniformVariable("time", nowTime);
+	Pattern.SetUniformVariable("swirlAmount", 0.2f);
+	Pattern.SetUniformVariable("swirlSpeed", 0.2f);
+	Pattern.SetUniformVariable("swirlRadius", 2.0f);
+	Pattern.SetUniformVariable("displacementAmt", 0.1f);
+	Pattern.SetUniformVariable("noiseScale", 1.0f);
+	Pattern.SetUniformVariable("sunIntensity", 2.0f);
+	Pattern.SetUniformVariable("uKa", 0.2f);
+	Pattern.SetUniformVariable("uKd", 0.7f);
+	Pattern.SetUniformVariable("uKs", 0.0f);
+	Pattern.SetUniformVariable("uShininess", 30.0f);
+	Pattern.SetUniformVariable("LIGHTPOSITION", 5.0f, 5.0f, 5.0f);
+	Pattern.SetUniformVariable("noiseTexture", 3);
 
 	glCallList( ObjectList );
 	Pattern.UnUse();
