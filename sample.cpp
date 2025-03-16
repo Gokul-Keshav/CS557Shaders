@@ -260,7 +260,7 @@ MulArray3(float factor, float a, float b, float c )
 
 //#include "setmaterial.cpp"
 //#include "setlight.cpp"
-//#include "osusphere.cpp"
+#include "osusphere.cpp"
 //#include "osucone.cpp"
 //#include "osutorus.cpp"
 #include "bmptotexture.cpp"
@@ -410,6 +410,8 @@ Display( )
 	// since we are using glScalef( ), be sure the normals get unitized:
 
 	glEnable( GL_NORMALIZE );
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	// set the uniform variables that will change over time:
 	// turn that into a time in seconds:
@@ -424,6 +426,22 @@ Display( )
 	Pattern.Use( );
 	Pattern.SetUniformVariable( "time", nowTime );
 	Pattern.SetUniformVariable( "noiseTexture", 3);
+
+	Pattern.SetUniformVariable( "swirlAmount", .3f);
+	Pattern.SetUniformVariable( "swirlSpeed", .3f);
+	Pattern.SetUniformVariable( "swirlRadius", 2.0f);
+
+	Pattern.SetUniformVariable( "noiseScale", 1.0f);
+
+	Pattern.SetUniformVariable( "smokeFactor", 0.6f);
+	Pattern.SetUniformVariable( "fireIntensity", 1.5f);
+
+	Pattern.SetUniformVariable( "uKa", 0.2f);
+	Pattern.SetUniformVariable( "uKd", 0.7f);
+	Pattern.SetUniformVariable( "uKs", 0.3f);
+	Pattern.SetUniformVariable( "uShininess", 30.0f);
+
+	Pattern.SetUniformVariable( "LIGHTPOSITION", 5.0f, 5.0f, 5.0f);
 
 	glCallList( ObjectList );
 	Pattern.UnUse();
@@ -808,7 +826,7 @@ InitLists( )
 
 	ObjectList = glGenLists( 1 );
 	glNewList( ObjectList, GL_COMPILE );
-	LoadObjFile( "snakeH.obj" );
+	OsuSphere( 4., 128, 128 );
 	glEndList( );
 
 	// create the axes:

@@ -1,7 +1,6 @@
 
-ERROR: 0:15: Invalid call of undeclared identifier 'texture'
-ERROR: 0:21: Use of undeclared identifier 'noiseValue'
-ERROR: 0:26: Use of undeclared identifier 'noiseValue'
-ERROR: 0:29: Use of undeclared identifier 'intensity'
-ERROR: 0:32: Use of undeclared identifier 'fire'
+ERROR: 0:1: Cannot retroactivly qualify undeclared identifier 'twist'
+ERROR: 0:57: Use of undeclared identifier 'twist'
+ERROR: 0:59: Use of undeclared identifier 'angle'
+ERROR: 0:60: Use of undeclared identifier 'twistedPos'
 
