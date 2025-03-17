@@ -1,120 +1,77 @@
-uniform float time;
-uniform sampler3D noiseTexture;  // 3D noise texture
+// Updated Fragment Shader with Earth Texture using vST
+#version 120
+// Passed from vertex shader:
+varying vec3 vMC;
+varying vec2 vST;
 
-// Lighting coefficients:
-uniform float uKa, uKd, uKs;     
-uniform float uShininess;
+// Uniforms set from C++:
+uniform float time;         
+uniform float crackScale;   
+uniform float crackWidth;   
+uniform sampler3D noiseTex; // For noise perturbation
+uniform sampler2D earthTex; // For the earth texture
 
-// Sun intensity (like "fireIntensity"):
-uniform float sunIntensity;   // scales brightness/glow
-uniform float noiseScale;     // spatial scale for noise sampling
-
-// From the vertex shader:
-varying vec3 vMC;  // Model coords
-varying vec2 vST;  // Texture coords
-varying vec3 vN;  // Normal in eye space
-varying vec3 vL;   // Light direction
-varying vec3 vE;   // Eye direction
-
-// Simple white specular color:
-const vec3 SPECULARCOLOR = vec3(1.0, 1.0, 1.0);
-
-// Sample the 3D noise:
-float sampleNoise(vec3 coord) {
-    return texture3D(noiseTexture, coord).r;
+// Simple hash function to generate a pseudo-random value:
+float rand(float n) {
+    return fract(sin(n) * 43758.5453);
 }
 
-// Multi-octave noise (fBm) for layered detail:
-float fbm(vec3 p) {
-    float total = 0.0;
-    float scale = 1.0;
-    float amp   = 1.0;
-    // 4 octaves:
-    for(int i = 0; i < 4; i++) {
-        total += sampleNoise(p * scale) * amp;
-        scale *= 2.0;
-        amp   *= 0.5;
-    }
-    return total;
-}
-
-// A color ramp for a "burning sun" look:
-// Goes from deeper orange to bright yellow-white.
-vec3 sunColor(float t)
-{
-    t = clamp(t, 0.0, 1.0);
-
-    if (t < 0.33) {
-        // 0..0.33 => deeper orange/red
-        return mix(vec3(0.6, 0.1, 0.0), vec3(1.0, 0.4, 0.0), t * 3.0);
-    }
-    else if (t < 0.66) {
-        // 0.33..0.66 => orange -> yellow
-        float u = (t - 0.33) * 3.0;
-        return mix(vec3(1.0, 0.4, 0.0), vec3(1.0, 0.9, 0.0), u);
-    }
-    else {
-        // 0.66..1.0 => yellow -> near white
-        float u = (t - 0.66) * 3.0;
-        return mix(vec3(1.0, 0.9, 0.0), vec3(1.0, 1.0, 0.8), u);
-    }
+// Generate a pseudo-random seed vector in [-1,1]:
+vec3 randomSeed(float n) {
+    return vec3(rand(n), rand(n + 1.0), rand(n + 2.0)) * 2.0 - 1.0;
 }
 
 void main()
 {
-    //////////////////////////////////////////
-    // 1. Compute multi-octave noise
-    //////////////////////////////////////////
-    float n = fbm(vMC * noiseScale + vec3(0.0, time * 0.2, 0.0));
-    // fBm can sum to ~4.0 => normalize to [0..1]
-    float t = clamp(n / 4.0, 0.0, 1.0);
-
-    //////////////////////////////////////////
-    // 2. Base color from sun ramp
-    //////////////////////////////////////////
-    // Multiply by sunIntensity so higher => more "white-hot"
-    float sunVal = clamp(t * sunIntensity, 0.0, 1.0);
-    vec3 baseColor = sunColor(sunVal);
-
-    //////////////////////////////////////////
-    // 3. Emissive glow
-    //////////////////////////////////////////
-    // Increase exponent & multiplier for a stronger glow
-    float glow = pow(sunVal, 3.0) * 2.5;
-    vec3 emissive = baseColor * glow;
-
-    // Combine
-    vec3 finalColor = baseColor + emissive;
-
-    //////////////////////////////////////////
-    // 4. Phong lighting
-    //    For a star-like look, you might reduce or remove specular
-    //////////////////////////////////////////
-    vec3 N = normalize(vN);
-    vec3 L = normalize(vL);
-    vec3 E = normalize(vE);
-
-    // Ambient
-    vec3 ambient = uKa * finalColor;
-
-    // Diffuse
-    float d = max(dot(N, L), 0.0);
-    vec3 diffuse = uKd * d * finalColor;
-
-    // Specular (can set uKs=0.0 if you don’t want highlights)
-    float s = 0.0;
-    if(d > 0.0) {
-        vec3 ref = reflect(-L, N);
-        float cosphi = dot(E, ref);
-        if(cosphi > 0.0) {
-            s = pow(cosphi, uShininess);
+    // 1. Scale the vertex coordinate to control cell size:
+    vec3 p = vMC * crackScale;
+    
+    // 2. Perturb the position with 3D noise to add irregularity:
+    vec3 noise = texture3D(noiseTex, p).rgb;
+    p += (noise - 0.5) * 0.2;
+    
+    //////////////////////////////////////////////////////////////////////////
+    // 3. Generate several random seeds for an irregular crack pattern.
+    //////////////////////////////////////////////////////////////////////////
+    const int numSeeds = 8;  // You can adjust this for more complexity
+    float minDist = 1e5;
+    float secondMin = 1e5;
+    
+    for (int i = 0; i < numSeeds; i++) {
+        float seedIndex = float(i) * 10.0;
+        vec3 seed = randomSeed(seedIndex);
+        float d = distance(p, seed);
+        if (d < minDist) {
+            secondMin = minDist;
+            minDist = d;
+        } else if (d < secondMin) {
+            secondMin = d;
         }
     }
-    vec3 specular = uKs * s * SPECULARCOLOR;
-
-    // Combine lighting
-    vec3 litColor = ambient + diffuse + specular;
-
-    // For a sun, fully opaque:
-    gl_FragColor = vec4(litColor, 1.0);
+    
+    //////////////////////////////////////////////////////////////////////////
+    // 4. Compute the crack “edge” distance as the difference between the two closest seeds.
+    //////////////////////////////////////////////////////////////////////////
+    float edge = secondMin - minDist;
+    
+    // Use smoothstep for a gradual transition:
+    float crackIntensity = smoothstep(crackWidth, crackWidth * 0.5, edge);
+    crackIntensity *= smoothstep(0.0, 0.5, time);
+    
+    //////////////////////////////////////////////////////////////////////////
+    // 5. Use the provided texture coordinates (vST) to sample the earth texture.
+    //////////////////////////////////////////////////////////////////////////
+    vec2 uv = vST;
+    
+    // 6. Sample the earth texture:
+    vec3 earthColor = texture2D(earthTex, uv).rgb;
+    
+    //////////////////////////////////////////////////////////////////////////
+    // 7. Blend the crack effect with the earth texture:
+    // When crackIntensity is 1, you'll see black (the crack); when 0, the earth texture remains.
+    //////////////////////////////////////////////////////////////////////////
+    vec3 crackColor = vec3(0.0);
+    vec3 finalColor = mix(earthColor, crackColor, crackIntensity);
+    
+    gl_FragColor = vec4(finalColor, 1.0);
 }
