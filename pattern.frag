@@ -1,4 +1,3 @@
-
 uniform float time;
 uniform sampler3D noiseTexture;  // 3D noise texture
 
@@ -13,7 +12,7 @@ uniform float noiseScale;     // spatial scale for noise sampling
 // From the vertex shader:
 varying vec3 vMC;  // Model coords
 varying vec2 vST;  // Texture coords
-varying vec3 vN;   // Normal in eye space
+varying vec3 vN;  // Normal in eye space
 varying vec3 vL;   // Light direction
 varying vec3 vE;   // Eye direction
 
