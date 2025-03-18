@@ -269,7 +269,7 @@ MulArray3(float factor, float a, float b, float c )
 #include "glslprogram.cpp"
 
 GLSLProgram Pattern;
-GLuint Noise3, ImageTex;
+GLuint Noise3;
 
 //Define Keytimes
 //Keytimes NowNoiseAmp, NowNoiseFreq;
@@ -413,30 +413,30 @@ Display( )
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	// set the uniform variables that will change over time:
+	// turn that into a time in seconds:
+	// turn # msec into the cycle ( 0 - MSEC-1 ):
+    int msec = glutGet( GLUT_ELAPSED_TIME )  %  MS_PER_CYCLE;
+    float nowTime = (float)msec / 1000.;
+	//printf("Now Time %f\n", nowTime);
+
 	glActiveTexture( GL_TEXTURE3 ); 
 	glBindTexture(GL_TEXTURE_3D, Noise3 );
 
-	glActiveTexture( GL_TEXTURE4 );
-	glBindTexture(GL_TEXTURE_2D, ImageTex);
-
-	// 1) Compute time in [0..10] repeating:
-	int ms = glutGet(GLUT_ELAPSED_TIME);
-	ms = ms % 10000;                   // 10-second cycle
-	float nowTime = (float)ms / 1000.f;  // time in [0..10]
-
-	// 2) Decide how crackWidth evolves. e.g. 0..0.2 over 10 sec:
-	float currentCrackWidth = 0.2f * (nowTime / 10.f);
-
-	// 3) Also pick a scale for how large or small you want cells:
-	float currentCrackScale = 1.0f;
-
-	// Then set them:
-	Pattern.Use();
+	Pattern.Use( );
 	Pattern.SetUniformVariable("time", nowTime);
-	Pattern.SetUniformVariable("crackWidth", currentCrackWidth);
-	Pattern.SetUniformVariable("crackScale", currentCrackScale);
-	Pattern.SetUniformVariable("noiseTex", 3);
-	Pattern.SetUniformVariable("earthTex", 4);
+	Pattern.SetUniformVariable("swirlAmount", 0.2f);
+	Pattern.SetUniformVariable("swirlSpeed", 0.2f);
+	Pattern.SetUniformVariable("swirlRadius", 2.0f);
+	Pattern.SetUniformVariable("displacementAmt", 0.1f);
+	Pattern.SetUniformVariable("noiseScale", 1.0f);
+	Pattern.SetUniformVariable("sunIntensity", 2.0f);
+	Pattern.SetUniformVariable("uKa", 0.2f);
+	Pattern.SetUniformVariable("uKd", 0.7f);
+	Pattern.SetUniformVariable("uKs", 0.0f);
+	Pattern.SetUniformVariable("uShininess", 30.0f);
+	Pattern.SetUniformVariable("LIGHTPOSITION", 5.0f, 5.0f, 5.0f);
+	Pattern.SetUniformVariable("noiseTexture", 3);
 
 	glCallList( ObjectList );
 	Pattern.UnUse();
@@ -772,25 +772,6 @@ InitGraphics( )
 		glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA, nums, numt, nump, 0, GL_RGBA,
 		GL_UNSIGNED_BYTE, texture);
 	}
-
-	//Earth texture reading
-	char* ImageFile = "earth.bmp";
-	int width, height;
-    unsigned char* tex = BmpToTexture(ImageFile, &width, &height);
-    if (tex == NULL) {
-        fprintf(stderr, "Failed to load texture: %s\n", ImageFile);
-        exit(1);
-    }
-	fprintf(stderr, "Successfully loaded texture: %s with dimensions %d x %d\n", ImageFile, width, height);
-	glGenTextures(1, &ImageTex);
-	glBindTexture(GL_TEXTURE_2D, ImageTex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, tex);
-	delete[] tex;
-
 	// all other setups go here, such as GLSLProgram and KeyTime setups:
 
 	Pattern.Init( );
